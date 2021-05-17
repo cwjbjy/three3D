@@ -19,8 +19,9 @@ export default {
       camera: null,
       renderer: null,
       controls: null,
-      center: [12.4794497, 41.8769001],
+      center: [12.466816, 41.8754885],
       MAT_BUILDING: null,
+      MAT_ROAD:null,
       stats:null,
       geos_building:[],
       collider_building:[],
@@ -86,7 +87,7 @@ export default {
       this.renderer = new THREE.WebGLRenderer({ antialias: true });
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.renderer.setPixelRatio(window.devicePixelRatio);
-      this.renderer.setClearColor(0xb9d3ff, 1); //背景色
+      // this.renderer.setClearColor(0xb9d3ff, 1); //背景色
       cont.appendChild(this.renderer.domElement);
 
       this.controls = new MapControls(this.camera, this.renderer.domElement);
@@ -94,8 +95,12 @@ export default {
       this.controls.maxDistance = 800;
 
       this.MAT_BUILDING = new THREE.MeshPhongMaterial({
-        color: new THREE.Color(0xb1e90ff),
+        // color: new THREE.Color(0xb1e90ff),
       });
+
+      this.MAT_ROAD = new THREE.LineBasicMaterial({
+        color:new THREE.Color(0x2F9BFF)
+      })
 
       this.stats = new Stats()
       cont.appendChild(this.stats.domElement)
@@ -110,7 +115,7 @@ export default {
       this.stats.update()
     },
     GetJSON() {
-      fetch("/assets/export.geojson").then((res) => {
+      fetch("/assets/road.geojson").then((res) => {
         res.json().then((data) => {
           this.LoadBuildings(data);
         });
@@ -123,12 +128,16 @@ export default {
         let fel = features[i];
         if (!fel["properties"]) return;
 
-        if (fel.properties["building"]) {
+        let info = fel.properties
+
+        if (info["building"]) {
           this.addBuilding(
             fel.geometry.coordinates,
-            fel.properties,
-            fel.properties["building:levels"]
+            info,
+            info["building:levels"]
           );
+        }else if(info['highway']){
+           this.addRoad(fel.geometry.coordinates,info)
         }
       }
       this.$nextTick(()=>{
@@ -136,6 +145,24 @@ export default {
         let mesh = new THREE.Mesh(mergeGeometry,this.MAT_BUILDING)
         this.scene.add(mesh);
       })
+    },
+    addRoad(data,info){
+      let points = [];
+      for(let i=0;i<data.length;i++){
+        if(!data[0][1])return;
+        let el = data[i]
+        if(!el[0] || !el[i])return
+        let elp = [el[0],el[1]]
+        elp = this.GPSRelativePosition([elp[0],elp[1]],this.center)
+        points.push(new THREE.Vector3(elp[0],0.5,elp[1]))
+      }
+      let geometry = new THREE.BufferGeometry().setFromPoints(points)
+
+      geometry.rotateZ(Math.PI)
+
+      let line = new THREE.Line(geometry,this.MAT_ROAD)
+      this.scene.add(line)
+      line.position.y = 0.5
     },
     addBuilding(data, info, height = 1) {
       height = height ? height : 1;
