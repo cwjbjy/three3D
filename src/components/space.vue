@@ -26,6 +26,10 @@ export default {
       geos_building:[],
       collider_building:[],
       raycaster:null,
+      FLAG_ROAD_ANI:true,
+      iR_Line:null,
+      iR:null,
+      Animated_Line_Distances:[]
     };
   },
   mounted() {
@@ -61,6 +65,17 @@ export default {
         1000
       );
       this.camera.position.set(12,8,4);
+
+      this.iR = new THREE.Group()
+      this.iR.name = 'root scene'
+
+      this.iR_Line = new THREE.Group()
+
+      this.$nextTick(()=>{
+        this.scene.add(this.iR)
+        this.scene.add(this.iR_Line)
+      })
+
 
       this.raycaster = new THREE.Raycaster()
 
@@ -99,7 +114,7 @@ export default {
       });
 
       this.MAT_ROAD = new THREE.LineBasicMaterial({
-        color:new THREE.Color(0x2F9BFF)
+        color:new THREE.Color(0x254360)
       })
 
       this.stats = new Stats()
@@ -112,6 +127,7 @@ export default {
     Update() {
       requestAnimationFrame(this.Update);
       this.renderer.render(this.scene, this.camera);
+      this.UpdateAnimatedLine()
       this.stats.update()
     },
     GetJSON() {
@@ -143,7 +159,7 @@ export default {
       this.$nextTick(()=>{
         let mergeGeometry = BufferGeometryUtils.mergeBufferGeometries(this.geos_building)
         let mesh = new THREE.Mesh(mergeGeometry,this.MAT_BUILDING)
-        this.scene.add(mesh);
+        this.iR.add(mesh);
       })
     },
     addRoad(data,info){
@@ -161,8 +177,44 @@ export default {
       geometry.rotateZ(Math.PI)
 
       let line = new THREE.Line(geometry,this.MAT_ROAD)
-      this.scene.add(line)
+      line.computeLineDistances()
+      
+      this.iR.add(line)
       line.position.y = 0.5
+
+      if(this.FLAG_ROAD_ANI){
+        let lineLength = geometry.attributes.lineDistance.array[geometry.attributes.lineDistance.count -1]
+        if(lineLength>0.8){
+          let aniLine = this.addAnimatedLine(geometry,lineLength)
+          this.iR_Line.add(aniLine)
+        }
+      }
+    },
+    addAnimatedLine(geometry,length){
+      let animatedLine = new THREE.Line(geometry,new THREE.LineDashedMaterial({color:0x00FFFF}))
+      animatedLine.material.dashSize = 0
+      animatedLine.material.gapSize = 1000
+      animatedLine.position.y = 0.5
+      animatedLine.material.transparent = true
+      this.Animated_Line_Distances.push(length)
+      return animatedLine
+    },
+    UpdateAnimatedLine(){
+      if(this.iR_Line.children.length <=0 ) return
+      for(let i=0;i<this.iR_Line.children.length;i++){
+        let line = this.iR_Line.children[i]
+        let dash = parseInt(line.material.dashSize)
+        let length = parseInt(this.Animated_Line_Distances[i])
+
+        if(dash > length){
+          //Recover
+          line.material.dashSize = 0
+          line.material.opacity = 1
+        }else{
+          line.material.dashSize += 0.004
+          line.material.opacity = line.material.opacity > 0 ? line.material.opacity - 0.002 : 0
+        }
+      }
     },
     addBuilding(data, info, height = 1) {
       height = height ? height : 1;
