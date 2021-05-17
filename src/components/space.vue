@@ -8,6 +8,9 @@
 import * as THREE from "three";
 import * as GEOLIB from "geolib";
 import { MapControls } from "three/examples/jsm/controls/OrbitControls";
+import Stats from 'three/examples/jsm/libs/stats.module.js'
+import {BufferGeometryUtils} from 'three/examples/jsm/utils/BufferGeometryUtils'
+
 export default {
   name: "space",
   data() {
@@ -18,6 +21,8 @@ export default {
       controls: null,
       center: [12.4794497, 41.8769001],
       MAT_BUILDING: null,
+      stats:null,
+      geos_building:[]
     };
   },
   mounted() {
@@ -67,17 +72,21 @@ export default {
       this.controls.dampingFactor = 0.25; //延迟响应时间
       this.controls.maxDistance = 800;
 
-      this.Update();
-
       this.MAT_BUILDING = new THREE.MeshPhongMaterial({
         color: new THREE.Color(0xb1e90ff),
       });
 
+      this.stats = new Stats()
+      cont.appendChild(this.stats.domElement)
+
       this.GetJSON();
+
+      this.Update();
     },
     Update() {
       requestAnimationFrame(this.Update);
       this.renderer.render(this.scene, this.camera);
+      this.stats.update()
     },
     GetJSON() {
       fetch("/assets/export.geojson").then((res) => {
@@ -101,16 +110,32 @@ export default {
           );
         }
       }
+      this.$nextTick(()=>{
+        let mergeGeometry = BufferGeometryUtils.mergeBufferGeometries(this.geos_building)
+        let mesh = new THREE.Mesh(mergeGeometry,this.MAT_BUILDING)
+        this.scene.add(mesh);
+      })
     },
     addBuilding(data, info, height = 1) {
       height = height ? height : 1;
+      let shape,geometry
+      let holes = []
 
       for (let i = 0; i < data.length; i++) {
         let el = data[i];
 
-        let shape = this.genShape(el, this.center);
+        if(i === 0){
+          shape = this.genShape(el, this.center);
+        }else{
+          holes.push(this.genShape(el, this.center)) //定义了形状上的孔洞
+        }
+      }
 
-        let geometry = this.genGeometry(shape, {
+      for(let i=0;i<holes.length;i++){
+        shape.holes.push(holes[i]) 
+      }
+
+      geometry = this.genGeometry(shape, {
           curveSegments: 1,
           depth: 0.05 * height,
           bevelEnabled: false,
@@ -119,9 +144,11 @@ export default {
         geometry.rotateX(Math.PI / 2);
         geometry.rotateZ(Math.PI);
 
-        let mesh = new THREE.Mesh(geometry, this.MAT_BUILDING);
-        this.scene.add(mesh);
-      }
+        // let mesh = new THREE.Mesh(geometry, this.MAT_BUILDING);
+        // this.scene.add(mesh);
+
+        /* 性能优化，创建单个实例 */
+        this.geos_building.push(geometry)
     },
 
     genShape(points, center) {
