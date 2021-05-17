@@ -22,11 +22,30 @@ export default {
       center: [12.4794497, 41.8769001],
       MAT_BUILDING: null,
       stats:null,
-      geos_building:[]
+      geos_building:[],
+      collider_building:[],
+      raycaster:null,
     };
   },
   mounted() {
     this.Awake();
+    let that = this;
+    window.addEventListener('resize',onWindowResize,false)
+    function onWindowResize(){
+      that.camera.aspect = window.innerWidth / window.innerHeight
+      that.camera.updateProjectionMatrix()
+      that.renderer.setSize(window.innerWidth,window.innerHeight)
+    }
+    onWindowResize()
+
+    document.getElementById('cont').addEventListener('mousedown',evt=>{
+      let mouse = {
+        	x : ( event.clientX / window.innerWidth ) * 2 - 1,
+	        y : - ( event.clientY / window.innerHeight ) * 2 + 1
+      }
+      let hitted = that.Fire(mouse)
+      console.log(hitted)
+    })
   },
   methods: {
     Awake() {
@@ -41,6 +60,8 @@ export default {
         1000
       );
       this.camera.position.set(12,8,4);
+
+      this.raycaster = new THREE.Raycaster()
 
       let light0 = new THREE.AmbientLight(0xfafafa, 0.25);
       let light1 = new THREE.PointLight(0xfafafa, 0.4);
@@ -149,6 +170,27 @@ export default {
 
         /* 性能优化，创建单个实例 */
         this.geos_building.push(geometry)
+
+        let helper = this.genHelper(geometry)
+
+        if(helper){
+          helper.name = info['name'] ? info['name']:'Building'
+          helper.info = info
+          this.collider_building.push(helper)
+        }
+    },
+
+    genHelper(geometry){
+      if(!geometry.boundingBox) geometry.computeBoundingBox()
+      let box3 = geometry.boundingBox
+
+      if(!isFinite(box3.max.x)){
+        /* 值不能无限大 */
+        return false
+      }
+      let helper = new THREE.Box3Helper(box3,0xffff00)
+      helper.updateMatrixWorld()
+      return helper
     },
 
     genShape(points, center) {
@@ -166,6 +208,16 @@ export default {
       }
 
       return shape;
+    },
+
+    Fire(mouse){
+      this.raycaster.setFromCamera(mouse,this.camera)
+      let intersects = this.raycaster.intersectObjects(this.collider_building,true)
+      if(intersects.length > 0){
+        return intersects[0].object
+      }else{
+        return false
+      }
     },
     genGeometry(shape, config) {
       let geometry = new THREE.ExtrudeBufferGeometry(shape, config);
