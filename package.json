@@ -1,5 +1,5 @@
 {
-  "name": "three",
+  "name": "threedemo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,8 @@
   },
   "dependencies": {
     "core-js": "^3.6.5",
+    "geolib": "^3.3.1",
+    "three": "^0.117.1",
     "vue": "^2.6.11"
   },
   "devDependencies": {
